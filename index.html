@@ -269,7 +269,7 @@ const CITIES = [
 ];
 const CITY_KEY = 'movieboard.city.v1';
 const tppCity = () => CITIES[Math.min(+(localStorage.getItem(CITY_KEY) || 0) || 0, CITIES.length - 1)] || CITIES[0];
-const mtop = (api, v, data) => jget(PROXY + '/mtop?' + qp({ api, v, data: JSON.stringify(data) }));
+const mtop = (api, v, data) => jget(PROXY + '/film?' + qp({ api, v, data: JSON.stringify(data) }));
 const mtopErr = r => String(r && r.ret || '没回话').replace('::', '：').slice(0, 60);
 
 let tppCache = { code: '', at: 0, shows: null };
