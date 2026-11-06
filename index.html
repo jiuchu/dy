@@ -71,6 +71,8 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 .dbox{display:grid;grid-template-columns:minmax(260px,1.05fr) minmax(300px,1.5fr) minmax(210px,.85fr);gap:0}
 .dcol{padding:16px 18px;border-right:1px solid var(--line)}
 .dcol:last-child{border-right:0}
+.sess{grid-column:1/-1;border-top:1px solid var(--line);padding:14px 18px 16px}
+.sess .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .dcol h3{font-size:12px;color:var(--sub);margin:0 0 9px;font-weight:600;letter-spacing:.4px}
 .dl{display:grid;grid-template-columns:56px 1fr;gap:4px 10px;font-size:13px}
 .dl dt{color:var(--sub)}
@@ -154,6 +156,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
   <div><b>片长写「待补」</b> 不是这部片没时长，是这一趟没去取。取一次就记在你这台机器上，之后打开同一页不再取；取不到时这一页会自己歇几个钟头再来，免得越敲越紧。所以这几格会一天一天变少。</div>
   <div><b>IMDb</b> 只对非华语片去取，且要片名在 IMDb 上对得上号才对得上。它对刚上映的进口片未必及时，取到就并列显示，取不到不编数。</div>
   <div><b>判断口径</b> 评分人数不足 <code>2000</code> 时，分数本身不稳，那一行不给结论只报数字。没分数的那几行印的是豆瓣自己给的话（暂无评分、尚未上映），不替它猜。展映、重映这类合并条目按单片处理会算错，已单独标注。</div>
+  <div><b>黄冈场次</b> 展开某一行时给的是直达猫眼那一页影院列表的按钮，点一下才开。面板里不嵌它的页面（实测被嵌后会自己反复重载），也代取不了（它挡非国内的服务器出口）。所以影院按你这台机器所在的城市出，选座和下单都在猫眼那边完成。</div>
   <div><b>这份页面自己不算什么</b> 它不预测口碑走势，也不替你看影评。它只做一件事：把「要花的时间」和「别人看完之后怎么说」摆在你点买票按钮之前。</div>
 </div>
 
@@ -171,6 +174,30 @@ const MINR = 8;                        // 展开短评至少要这么多条带�
 // 条目号就是 https://movie.douban.com/subject/<这里>/ 地址里那串数字。
 const SEED_IDS = {
   '我们仅有一次的人生': '36424371'
+};
+
+/* 猫眼的片号。键是去掉标点空格的片名，值来自 https://www.maoyan.com/films 那一页里
+   每条链接自己的地址（成对读的，不是按顺序推的）。面板只把它拼进一个链接，
+   场次那一页由浏览器自己打开——猫眼挡海外出口，这一层我们代取不了。 */
+const MA_IDS = {
+  '神探之痕迹': '1552906',
+  '生化危机爆发夜': '1586199',
+  '心迷宫之三重罪': '1563514',
+  '我们仅有一次的人生': '1502289',
+  '什么意思夫妇': '1604748',
+  '小羊肖恩3怪兽来袭': '1608027',
+  '珠穆朗玛云中彼岸': '1855087',
+  '欢迎来龙餐馆': '1462628',
+  '奥德赛': '1545360',
+  '疾速追杀': '246966',
+  '民宿惊魂': '1511601',
+  '八仙': '1525868',
+  '小猪佩奇完美假期': '1528975',
+  '重生2': '1578266',
+  '痴迷': '1587931',
+  '空枪': '1595625',
+  '阴阳路惊魂': '1599810',
+  '戴帽子的猫': '1256044'
 };
 
 const norm = s => String(s || '').replace(/[\u200e\u200f\u202a\u200b\u3000\s]/g, '').replace(/[：:·.。]/g, '').toLowerCase();
@@ -384,6 +411,22 @@ function boxStruct(f) {
   </div>`;
 }
 
+/* 黄冈场次：只给一个直达链接，不在面板里嵌猫眼的页面。
+   嵌过，实测失败——猫眼那一页被嵌进框架后自己反复重载，一次展开刷出 20 条同样的请求。
+   也不由面板代取：猫眼的 WAF 挡海外出口，同一条中转取专资办 200、取猫眼 403。
+   所以这一层只能由你这台机器直接打开，点一下就到。 */
+function sessionBlock(f) {
+  const id = MA_IDS[norm(f.name)];
+  if (!id) return `<div class="sess"><h3>黄冈场次</h3>
+    <div class="moodn">猫眼那份片单里没有这一部，所以这一格没有可打开的页面——不给你一条猜出来的链接。</div></div>`;
+  const u = 'https://www.maoyan.com/cinemas?showId=' + id;
+  return `<div class="sess"><h3>黄冈场次</h3>
+    <div class="bar"><a class="btn" href="${u}" target="_blank" rel="noopener">在猫眼看这部片的黄冈场次</a>
+      <span class="moodn" style="margin:0">打开的是 <code>${esc(f.name)}</code> 在猫眼上的影院列表。</span></div>
+    <div class="moodn" style="margin-top:8px">影院按你这台机器所在的城市出，不是我们把字段抄过来的；
+    城市不对就在猫眼页面上切一次。选座、下单都在猫眼那边完成，这一格不替你操作。</div></div>`;
+}
+
 async function buildDetail(f) {
   if (f.show) return `<div class="dbox"><div class="dcol" style="grid-column:1/-1">
     <h3>这一行不是单部影片</h3><p style="font-size:13px;color:var(--sub);margin:0">
@@ -396,7 +439,7 @@ async function buildDetail(f) {
       <p style="font-size:13px;color:var(--sub);margin:0">知道它的豆瓣地址（形如
       <code>https://movie.douban.com/subject/xxxxxxxx/</code>）的话，把那串数字加进源码 SEED_IDS 这张表，
       这一行就补齐了。</p></div>
-    <div class="dcol">${boxStruct(f)}</div></div>`;
+    <div class="dcol">${boxStruct(f)}</div>${sessionBlock(f)}</div>`;
 
   const parts = [];
   const fails = [];
@@ -490,7 +533,7 @@ async function buildDetail(f) {
   right += '</div>' + boxStruct(f) + '</div>';
   parts.push(right);
 
-  return `<div class="dbox">${parts.join('')}</div>` +
+  return `<div class="dbox">${parts.join('')}${sessionBlock(f)}</div>` +
     (fails.length ? `<div style="padding:10px 18px" class="err">这一格里有取数没成功的：${esc(fails.join('；'))}。空着的位置都是真没取到，不是没有。</div>` : '');
 }
 
