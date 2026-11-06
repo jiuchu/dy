@@ -73,6 +73,18 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 .dcol:last-child{border-right:0}
 .sess{grid-column:1/-1;border-top:1px solid var(--line);padding:14px 18px 16px}
 .sess .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cin{border-top:1px solid var(--line);margin-top:10px}
+.cin .hd{display:flex;gap:12px;align-items:baseline;padding:8px 2px;cursor:pointer;font-size:13px}
+.cin .hd:hover{background:#f4f1ea}
+.cin .cn{font-weight:600;flex:1 1 220px;min-width:0}
+.cin .cd{color:var(--sub);font-size:12px;white-space:nowrap}
+.cin .cp{font-variant-numeric:tabular-nums;white-space:nowrap}
+.cin .sc{display:none;padding:2px 2px 10px;font-size:12.5px;color:var(--ink)}
+.cin.open .sc{display:block}
+.cin .slot{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:3px 8px;margin:0 6px 6px 0;background:#fff;white-space:nowrap}
+.cin .slot b{font-weight:600;font-variant-numeric:tabular-nums}
+.cin .slot.off{color:var(--sub);background:#f4f1ea;text-decoration:line-through}
+.sel{font:inherit;font-size:12px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .dcol h3{font-size:12px;color:var(--sub);margin:0 0 9px;font-weight:600;letter-spacing:.4px}
 .dl{display:grid;grid-template-columns:56px 1fr;gap:4px 10px;font-size:13px}
 .dl dt{color:var(--sub)}
@@ -120,6 +132,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
   <div class="stamp">
     <div>营业日 <b id="tDay">—</b></div>
     <div>最后一次更新 <b id="tUpd">—</b></div>
+    <div>排片城市 <select id="citySel" class="sel"></select></div>
     <div><button class="btn" id="bReload">重新取数</button></div>
   </div>
 </header>
@@ -156,7 +169,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
   <div><b>片长写「待补」</b> 不是这部片没时长，是这一趟没去取。取一次就记在你这台机器上，之后打开同一页不再取；取不到时这一页会自己歇几个钟头再来，免得越敲越紧。所以这几格会一天一天变少。</div>
   <div><b>IMDb</b> 只对非华语片去取，且要片名在 IMDb 上对得上号才对得上。它对刚上映的进口片未必及时，取到就并列显示，取不到不编数。</div>
   <div><b>判断口径</b> 评分人数不足 <code>2000</code> 时，分数本身不稳，那一行不给结论只报数字。没分数的那几行印的是豆瓣自己给的话（暂无评分、尚未上映），不替它猜。展映、重映这类合并条目按单片处理会算错，已单独标注。</div>
-  <div><b>黄冈场次</b> 展开某一行时给的是直达猫眼那一页影院列表的按钮，点一下才开。面板里不嵌它的页面（实测被嵌后会自己反复重载），也代取不了（它挡非国内的服务器出口）。所以影院按你这台机器所在的城市出，选座和下单都在猫眼那边完成。</div>
+  <div><b>黄冈排片</b> 影院、场次和票价来自淘票票的公开接口，不用登录；城市在右上角切，默认黄冈。座位图给不了：淘票票的座位要登它的账号才出。所以选座还是点「去猫眼选座」那一下，在猫眼自己页面里完成。</div>
   <div><b>这份页面自己不算什么</b> 它不预测口碑走势，也不替你看影评。它只做一件事：把「要花的时间」和「别人看完之后怎么说」摆在你点买票按钮之前。</div>
 </div>
 
@@ -165,6 +178,9 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 <script>
 'use strict';
 /* ============ 取数 ============ */
+/* 专资办和淘票票都不回跨域头，得借一层转发。线上是 proxy.jiuchu.top 上那个 Worker；
+   本机预览时同一批路由由 preview-server.js 提供，所以这里按域名切，不发绝对地址。 */
+const PROXY = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? '' : 'https://proxy.jiuchu.top';
 const ZGY_BASE = 'https://www.zgdypw.cn/data/';
 const DB_BASE  = 'https://m.douban.com/rexxar/api/v2';
 const MINI = 2000;                     // 评分人数低于这个数就不下结论
@@ -239,7 +255,70 @@ const dbCmts = id => jsonp(`${DB_BASE}/movie/${id}/interests`,
   { status: 'done', sort: 'new', count: 20, for_mobile: 1, ck: 'jq_a' });
 
 /* 专资办：没有跨域头，必须借一层转发 */
-const zgy = f => jget('https://proxy.jiuchu.top/proxy?url=' + encodeURIComponent(ZGY_BASE + f));
+const zgy = f => jget(PROXY + '/proxy?url=' + encodeURIComponent(ZGY_BASE + f));
+
+/* 排片：淘票票。它的接口不回跨域头，浏览器直连读不到，所以同样走中转，
+   令牌和签名在中转那一侧做完——这一页从头到尾不碰任何登录态。
+   坐标只用来算距离，城市是这里写死的，不是按访问者 IP 猜的。 */
+const CITIES = [
+  { name: '黄冈', code: '421100', lat: 30.453, lng: 114.871 },
+  { name: '武汉', code: '420100', lat: 30.517, lng: 114.365 },
+  { name: '鄂州', code: '420700', lat: 30.394, lng: 114.895 },
+  { name: '黄石', code: '420200', lat: 30.200, lng: 114.972 },
+  { name: '孝感', code: '420900', lat: 30.917, lng: 113.955 }
+];
+const CITY_KEY = 'movieboard.city.v1';
+const tppCity = () => CITIES[Math.min(+(localStorage.getItem(CITY_KEY) || 0) || 0, CITIES.length - 1)] || CITIES[0];
+const mtop = (api, v, data) => jget(PROXY + '/mtop?' + qp({ api, v, data: JSON.stringify(data) }));
+const mtopErr = r => String(r && r.ret || '没回话').replace('::', '：').slice(0, 60);
+
+let tppCache = { code: '', at: 0, shows: null };
+async function tppShows() {
+  const c = tppCity();
+  if (tppCache.code === c.code && tppCache.shows && Date.now() - tppCache.at < 6 * 3600e3) return tppCache.shows;
+  const r = await mtop('mtop.film.MtopShowAPI.getShowsByCityCode', '4.0', { citycode: c.code, platform: '8' });
+  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
+  tppCache = { code: c.code, at: Date.now(), shows: ((r.data || {}).returnValue || []).map(s => ({
+    id: String(s.id), name: s.showName, dur: s.duration,
+    cinemas: s.availableCinemaCount, scheds: s.availableScheduleCount
+  })) };
+  return tppCache.shows;
+}
+const matchTpp = (name, list) => {
+  const n = norm(name);
+  if (!n) return null;
+  return list.find(s => norm(s.name) === n)
+      || list.find(s => norm(s.name).includes(n) || n.includes(norm(s.name)))
+      || null;
+};
+async function tppCinemas(showId) {
+  const c = tppCity();
+  const r = await mtop('mtop.film.MtopCinemaAPI.getCinemaListInPage', '8.0',
+    { cityCode: c.code, showId, latitude: c.lat, longitude: c.lng, pageStart: 1, pageSize: 20, platform: '8', sortType: '1' });
+  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
+  return (((r.data || {}).returnValue || {}).cinemas || []).map(x => ({
+    id: String(x.cinemaId), name: x.cinemaName, addr: x.address,
+    dist: x.distance, price: x.minPrice, n: x.scheduleCount
+  }));
+}
+const schedCache = {};
+async function tppSchedules(cinemaId, showId) {
+  const key = cinemaId + '|' + showId;   // 一次返回的是这家影院全部在映片的场次，只按影院存会把 A 片发给 B 片
+  if (schedCache[key]) return schedCache[key];
+  const c = tppCity();
+  const r = await mtop('mtop.film.MtopScheduleAPI.getNewCinemaSchedules', '2.0',
+    { cinemaId, platform: '8', cityCode: c.code });
+  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
+  const days = (((r.data || {}).returnValue || {}).showScheduleMap || {})[showId] || [];
+  const out = [];
+  for (const d of days) for (const s of (d.scheduleVos || [])) out.push({
+    date: d.dateDesc || d.dateTip || '', open: s.openTime, close: s.closeTime,
+    hall: s.hallName, ver: s.showVersion, price: s.tradePrice, ori: s.oriPrice,
+    sell: s.sellFlag, stop: s.scheduleCloseTime
+  });
+  schedCache[key] = out;
+  return out;
+}
 
 /* IMDb：OMDb 负责把片名换成 tt 号（它有跨域头），实时评分只能从 IMDb 自己的
    打包接口取，那个接口没有跨域头，只认 <script> 标签式的回调。 */
@@ -393,6 +472,7 @@ async function toggle(i, tr) {
     drow.querySelector('td').innerHTML = '<div class="loading">正在取这部片的详情…</div>';
     drow.dataset.loaded = '1';
     drow.querySelector('td').innerHTML = await buildDetail(f);
+    fillSessions(f, drow);          // 排片那一格单独填，取数慢也不挡上面那些
   }
 }
 
@@ -411,20 +491,71 @@ function boxStruct(f) {
   </div>`;
 }
 
-/* 黄冈场次：只给一个直达链接，不在面板里嵌猫眼的页面。
-   嵌过，实测失败——猫眼那一页被嵌进框架后自己反复重载，一次展开刷出 20 条同样的请求。
-   也不由面板代取：猫眼的 WAF 挡海外出口，同一条中转取专资办 200、取猫眼 403。
-   所以这一层只能由你这台机器直接打开，点一下就到。 */
+/* 排片这一格：影院列表先给，场次表等点开那一家再去取。
+   座位图不在这里——淘票票的座位接口匿名打过去回的是 Session过期，
+   猫眼的座位页被嵌进框架会自己反复重载、它的接口又只认国内出口。
+   所以选座只留一条点过去的链接，不在这页里替它演一个假座位图。 */
 function sessionBlock(f) {
-  const id = MA_IDS[norm(f.name)];
-  if (!id) return `<div class="sess"><h3>黄冈场次</h3>
-    <div class="moodn">猫眼那份片单里没有这一部，所以这一格没有可打开的页面——不给你一条猜出来的链接。</div></div>`;
-  const u = 'https://www.maoyan.com/cinemas?showId=' + id;
-  return `<div class="sess"><h3>黄冈场次</h3>
-    <div class="bar"><a class="btn" href="${u}" target="_blank" rel="noopener">在猫眼看这部片的黄冈场次</a>
-      <span class="moodn" style="margin:0">打开的是 <code>${esc(f.name)}</code> 在猫眼上的影院列表。</span></div>
-    <div class="moodn" style="margin-top:8px">影院按你这台机器所在的城市出，不是我们把字段抄过来的；
-    城市不对就在猫眼页面上切一次。选座、下单都在猫眼那边完成，这一格不替你操作。</div></div>`;
+  const mid = MA_IDS[norm(f.name)];
+  const seat = mid
+    ? `<div class="bar" style="margin-top:12px"><a class="btn" href="https://www.maoyan.com/cinemas?showId=${mid}"
+         target="_blank" rel="noopener">去猫眼选座</a>
+       <span class="moodn" style="margin:0">座位图要登录态才出，这一格给不了；点这个到猫眼自己页面里选。</span></div>`
+    : `<div class="moodn" style="margin-top:10px">这一部在猫眼片单里对不上号，所以没有可点去选座的页面——不给你一条猜出来的链接。</div>`;
+  return `<div class="sess" data-sess>
+    <h3>${esc(tppCity().name)}排片 · 淘票票</h3>
+    <div class="sessbody"><span class="moodn" style="margin:0">正在取这一部在${esc(tppCity().name)}的场次…</span></div>
+    ${seat}</div>`;
+}
+
+const slotHtml = r => {
+  const off = r.sell !== 0 || (r.stop && r.stop < Date.now());
+  const hall = String(r.hall || '').slice(0, 14);
+  return `<span class="slot${off ? ' off' : ''}" title="${esc(r.hall || '')}">` +
+    `<b>${esc(r.open || '')}</b>${r.close ? '–' + esc(r.close) : ''} ` +
+    `${esc(r.ver || '')}${hall ? ' · ' + esc(hall) : ''}` +
+    (r.price ? ' <span class="cd">￥' + (r.price / 100).toFixed(1) + '</span>' : '') +
+    (off ? ' 已停售' : '') + '</span>';
+};
+
+async function fillSessions(f, drow) {
+  const box = drow.querySelector('[data-sess] .sessbody');
+  if (!box) return;
+  const cn = tppCity().name;
+  let list;
+  try { list = await tppShows(); }
+  catch (e) { box.innerHTML = `<div class="err">淘票票没答话：${esc(e.message)}。这一格空着是取数没接上，不是这部片没排。</div>`; return; }
+  const m = matchTpp(f.name, list);
+  if (!m) { box.innerHTML = `<div class="moodn" style="margin:0">${esc(cn)}的淘票票片单（${list.length} 部）里没有这一部——可能刚下映，也可能这家不卖它。</div>`; return; }
+  let cs;
+  try { cs = await tppCinemas(m.id); }
+  catch (e) { box.innerHTML = `<div class="err">影院列表没取到：${esc(e.message)}。</div>`; return; }
+  if (!cs.length) { box.innerHTML = `<div class="moodn" style="margin:0">条目对上了，但${esc(cn)}眼下没有一家影院在排它。</div>`; return; }
+  const how = norm(m.name) === norm(f.name) ? '' : `（按片名对的，淘票票那边叫「${esc(m.name)}」）`;
+  box.innerHTML = `<div class="moodn" style="margin:0 0 6px">本市 ${m.cinemas} 家影院在映、共 ${m.scheds} 场；` +
+    `下面列最近 ${cs.length} 家，点一行出场次${how}</div>` +
+    cs.map((c, i) => `<div class="cin" data-c="${i}"><div class="hd">` +
+      `<span class="cn">${esc(c.name)}</span>` +
+      `<span class="cd">${c.dist == null ? '—' : c.dist + ' km'}</span>` +
+      `<span class="cp">${c.price ? '￥' + (c.price / 100).toFixed(1) + ' 起' : '—'}</span>` +
+      `<span class="cd">${c.n || 0} 场</span></div><div class="sc"></div></div>`).join('');
+  box.querySelectorAll('.cin').forEach(el => {
+    el.querySelector('.hd').onclick = async () => {
+      el.classList.toggle('open');
+      if (el.dataset.got) return;
+      el.dataset.got = '1';
+      const sc = el.querySelector('.sc');
+      sc.innerHTML = '<span class="moodn" style="margin:0">取场次…</span>';
+      try {
+        const rows = await tppSchedules(cs[+el.dataset.c].id, m.id);
+        if (!rows.length) { sc.innerHTML = '<span class="moodn" style="margin:0">这家已经没有这部片的场次了。</span>'; return; }
+        const byDate = {};
+        rows.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+        sc.innerHTML = Object.keys(byDate).map(d =>
+          `<div style="margin:4px 0"><b>${esc(d)}</b> ${byDate[d].map(slotHtml).join('')}</div>`).join('');
+      } catch (e) { delete el.dataset.got; sc.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+    };
+  });
 }
 
 async function buildDetail(f) {
@@ -624,6 +755,24 @@ async function boot() {
     `<div class="warn"><b>这次有几块没取到：</b>${esc(bad.join('、'))}。表格里的数字是真取到的，缺的那块留空不补。</div>`;
   else document.getElementById('banner').innerHTML = '';
 }
+
+/* 城市：默认写死黄冈，右上角可切。切一次只重取排片，不动票房和评分那些。 */
+(function citySelect() {
+  const sel = document.getElementById('citySel');
+  sel.innerHTML = CITIES.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('');
+  sel.value = localStorage.getItem(CITY_KEY) || '0';
+  sel.onchange = () => {
+    try { localStorage.setItem(CITY_KEY, sel.value); } catch (e) {}
+    tppCache = { code: '', at: 0, shows: null };
+    Object.keys(schedCache).forEach(k => delete schedCache[k]);
+    const cur = document.querySelector('tr.row.open');
+    document.querySelectorAll('tr.detail').forEach(d => {
+      d.dataset.loaded = ''; d.hidden = true; d.querySelector('td').innerHTML = '';
+    });
+    document.querySelectorAll('tr.row').forEach(r => r.classList.remove('open'));
+    if (cur) toggle(+cur.dataset.i, cur);
+  };
+})();
 
 document.getElementById('bReload').onclick = () => boot();
 boot();
