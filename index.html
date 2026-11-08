@@ -72,7 +72,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 .dcol{padding:16px 18px;border-right:1px solid var(--line)}
 .dcol:last-child{border-right:0}
 .sess{grid-column:1/-1;border-top:1px solid var(--line);padding:14px 18px 16px}
-.sess .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sess .datebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .cin{border-top:1px solid var(--line);margin-top:10px}
 .cin .hd{display:flex;gap:12px;align-items:baseline;padding:8px 2px;cursor:pointer;font-size:13px}
 .cin .hd:hover{background:#f4f1ea}
@@ -90,8 +90,8 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 .sgrid{overflow-x:auto;padding:2px 0 4px}
 .srow{display:flex;gap:3px;align-items:center;margin-bottom:3px}
 .srl{width:18px;flex:0 0 auto;color:var(--sub);font-size:11px;text-align:right;margin-right:4px;font-variant-numeric:tabular-nums}
-.st{display:inline-block;width:15px;height:13px;flex:0 0 auto;border-radius:3px;border:1px solid #a9b3a0;background:#fff}
-.sbar .st{width:13px;height:11px}
+.sq{display:inline-block;width:15px;height:13px;flex:0 0 auto;border-radius:3px;border:1px solid #a9b3a0;background:#fff}
+.sbar .sq{width:13px;height:11px}
 .ssold{background:#9aa0ab;border-color:#878d98}
 .smaint{background:repeating-linear-gradient(45deg,#e6e3db,#e6e3db 3px,#f7f5f0 3px,#f7f5f0 6px);border-color:#dcd8ce}
 .snone{background:transparent;border-color:transparent}
@@ -524,8 +524,8 @@ function seatGrid(seats) {
     out += `<div class="srow"><span class="srl">${r}</span>`;
     for (let c = minC; c <= maxC; c++) {
       const s = at[r + ':' + c];
-      out += s ? `<span class="st ${seatCls(s)}${s.lovestatus === 1 ? ' slove' : ''}" title="${esc(s.seatNo)}"></span>`
-                : '<span class="st snone"></span>';
+      out += s ? `<span class="sq ${seatCls(s)}${s.lovestatus === 1 ? ' slove' : ''}" title="${esc(s.seatNo)}"></span>`
+                : '<span class="sq snone"></span>';
     }
     out += '</div>';
   }
@@ -543,10 +543,10 @@ function seatPanel(d, r) {
   const pr = [...new Set(d.sections.map(x => x.netPrice).filter(x => x != null))];
   const hall = String((r && r.hall) || (d.room && d.room.hallName) || '').slice(0, 22);
   const dur = (r && r.dur) || (d.room && d.room.duration);
-  return `<div class="sbar"><span class="st sfree"></span>可选 ${free}` +
-    `<span class="st ssold"></span>已售 ${sold}` +
-    (maint ? `<span class="st smaint"></span>不卖 ${maint}` : '') +
-    (love ? `<span class="st slove"></span>情侣座` : '') +
+  return `<div class="sbar"><span class="sq sfree"></span>可选 ${free}` +
+    `<span class="sq ssold"></span>已售 ${sold}` +
+    (maint ? `<span class="sq smaint"></span>不卖 ${maint}` : '') +
+    (love ? `<span class="sq slove"></span>情侣座` : '') +
     ` 共 ${d.seats.length} 座` +
     (pr.length ? ' · 票价 ' + pr.map(x => '￥' + (+x).toFixed(1)).join(' / ') : '') +
     ` · ${esc(hall)}${dur ? ' ' + esc(dur) + ' 分钟' : ''}` +
@@ -628,7 +628,7 @@ async function fillSessions(f, drow) {
   }
 
   function drawDates() {
-    head.innerHTML = `<div class="bar" style="margin-bottom:8px">` +
+    head.innerHTML = `<div class="datebar" style="margin-bottom:8px">` +
       dates.map(d => `<button class="slot dt${d === date ? ' on' : ''}" data-d="${esc(d)}">` +
         `${esc(d === today ? '今天' : d.slice(5))}</button>`).join('') + '</div>';
     head.querySelectorAll('.dt').forEach(b => b.onclick = () => { date = b.dataset.d; drawDates(); load(); });
