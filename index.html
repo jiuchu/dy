@@ -81,9 +81,23 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 .cin .cp{font-variant-numeric:tabular-nums;white-space:nowrap}
 .cin .sc{display:none;padding:2px 2px 10px;font-size:12.5px;color:var(--ink)}
 .cin.open .sc{display:block}
-.cin .slot{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:3px 8px;margin:0 6px 6px 0;background:#fff;white-space:nowrap}
-.cin .slot b{font-weight:600;font-variant-numeric:tabular-nums}
-.cin .slot.off{color:var(--sub);background:#f4f1ea;text-decoration:line-through}
+.sess .slot{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:3px 8px;margin:0 6px 6px 0;background:#fff;white-space:nowrap}
+.sess button.slot{font:inherit;font-size:12.5px;color:inherit;cursor:pointer}
+.sess .slot b{font-weight:600;font-variant-numeric:tabular-nums}
+.sess .slot.on{background:#fbf1d6;border-color:#b9975b}
+.seatbox{margin:4px 0 2px}
+.sbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--sub);margin:2px 0 8px}
+.sgrid{overflow-x:auto;padding:2px 0 4px}
+.srow{display:flex;gap:3px;align-items:center;margin-bottom:3px}
+.srl{width:18px;flex:0 0 auto;color:var(--sub);font-size:11px;text-align:right;margin-right:4px;font-variant-numeric:tabular-nums}
+.st{display:inline-block;width:15px;height:13px;flex:0 0 auto;border-radius:3px;border:1px solid #a9b3a0;background:#fff}
+.sbar .st{width:13px;height:11px}
+.ssold{background:#9aa0ab;border-color:#878d98}
+.smaint{background:repeating-linear-gradient(45deg,#e6e3db,#e6e3db 3px,#f7f5f0 3px,#f7f5f0 6px);border-color:#dcd8ce}
+.snone{background:transparent;border-color:transparent}
+.slove{width:26px}
+.sbar .slove{width:22px}
+.swhen{margin-left:auto;font-size:11px;white-space:nowrap}
 .sel{font:inherit;font-size:12px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .dcol h3{font-size:12px;color:var(--sub);margin:0 0 9px;font-weight:600;letter-spacing:.4px}
 .dl{display:grid;grid-template-columns:56px 1fr;gap:4px 10px;font-size:13px}
@@ -169,7 +183,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
   <div><b>片长写「待补」</b> 不是这部片没时长，是这一趟没去取。取一次就记在你这台机器上，之后打开同一页不再取；取不到时这一页会自己歇几个钟头再来，免得越敲越紧。所以这几格会一天一天变少。</div>
   <div><b>IMDb</b> 只对非华语片去取，且要片名在 IMDb 上对得上号才对得上。它对刚上映的进口片未必及时，取到就并列显示，取不到不编数。</div>
   <div><b>判断口径</b> 评分人数不足 <code>2000</code> 时，分数本身不稳，那一行不给结论只报数字。没分数的那几行印的是豆瓣自己给的话（暂无评分、尚未上映），不替它猜。展映、重映这类合并条目按单片处理会算错，已单独标注。</div>
-  <div><b>黄冈排片</b> 影院、场次和票价来自淘票票的公开接口，不用登录；城市在右上角切，默认黄冈。座位图给不了：淘票票的座位要登它的账号才出。所以选座还是点「去猫眼选座」那一下，在猫眼自己页面里完成。</div>
+  <div><b>黄冈排片</b> 影院、场次、票价和<b>逐座占用</b>都直接画在这一页里，不用登录任何东西；城市在右上角切，默认黄冈。点一家影院出场次，点一场出座位。深灰是已被买走的座，斜纹是这间厅本来就不卖的位置（走道、轮椅席这类），两者不是一回事，所以分开上色。座位那一格右下角写的是取数时刻——它是分钟级的状态，你决定去了就该回页面上重新点一次，别拿十分钟前的那张图做决定。</div>
   <div><b>这份页面自己不算什么</b> 它不预测口碑走势，也不替你看影评。它只做一件事：把「要花的时间」和「别人看完之后怎么说」摆在你点买票按钮之前。</div>
 </div>
 
@@ -178,7 +192,7 @@ tr.detail>td{background:#faf8f3;padding:0;border-bottom:1px solid var(--line)}
 <script>
 'use strict';
 /* ============ 取数 ============ */
-/* 专资办和淘票票都不回跨域头，得借一层转发。线上是 proxy.jiuchu.top 上那个 Worker；
+/* 专资办和排片那一层都不回跨域头，得借一层转发。线上是 proxy.jiuchu.top 上那个 Worker；
    本机预览时同一批路由由 preview-server.js 提供，所以这里按域名切，不发绝对地址。 */
 const PROXY = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? '' : 'https://proxy.jiuchu.top';
 const ZGY_BASE = 'https://www.zgdypw.cn/data/';
@@ -190,30 +204,6 @@ const MINR = 8;                        // 展开短评至少要这么多条带�
 // 条目号就是 https://movie.douban.com/subject/<这里>/ 地址里那串数字。
 const SEED_IDS = {
   '我们仅有一次的人生': '36424371'
-};
-
-/* 猫眼的片号。键是去掉标点空格的片名，值来自 https://www.maoyan.com/films 那一页里
-   每条链接自己的地址（成对读的，不是按顺序推的）。面板只把它拼进一个链接，
-   场次那一页由浏览器自己打开——猫眼挡海外出口，这一层我们代取不了。 */
-const MA_IDS = {
-  '神探之痕迹': '1552906',
-  '生化危机爆发夜': '1586199',
-  '心迷宫之三重罪': '1563514',
-  '我们仅有一次的人生': '1502289',
-  '什么意思夫妇': '1604748',
-  '小羊肖恩3怪兽来袭': '1608027',
-  '珠穆朗玛云中彼岸': '1855087',
-  '欢迎来龙餐馆': '1462628',
-  '奥德赛': '1545360',
-  '疾速追杀': '246966',
-  '民宿惊魂': '1511601',
-  '八仙': '1525868',
-  '小猪佩奇完美假期': '1528975',
-  '重生2': '1578266',
-  '痴迷': '1587931',
-  '空枪': '1595625',
-  '阴阳路惊魂': '1599810',
-  '戴帽子的猫': '1256044'
 };
 
 const norm = s => String(s || '').replace(/[\u200e\u200f\u202a\u200b\u3000\s]/g, '').replace(/[：:·.。]/g, '').toLowerCase();
@@ -257,8 +247,8 @@ const dbCmts = id => jsonp(`${DB_BASE}/movie/${id}/interests`,
 /* 专资办：没有跨域头，必须借一层转发 */
 const zgy = f => jget(PROXY + '/proxy?url=' + encodeURIComponent(ZGY_BASE + f));
 
-/* 排片：淘票票。它的接口不回跨域头，浏览器直连读不到，所以同样走中转，
-   令牌和签名在中转那一侧做完——这一页从头到尾不碰任何登录态。
+/* 排片与座位：这一层从片单、影院、场次到逐座状态是同一家给的，不要登录态也不收凭证。
+   它不回跨域头，所以和专资办一样走中转，中转那一侧只补一个公开的分站号。
    坐标只用来算距离，城市是这里写死的，不是按访问者 IP 猜的。 */
 const CITIES = [
   { name: '黄冈', code: '421100', lat: 30.453, lng: 114.871 },
@@ -268,56 +258,69 @@ const CITIES = [
   { name: '孝感', code: '420900', lat: 30.917, lng: 113.955 }
 ];
 const CITY_KEY = 'movieboard.city.v1';
-const tppCity = () => CITIES[Math.min(+(localStorage.getItem(CITY_KEY) || 0) || 0, CITIES.length - 1)] || CITIES[0];
-const mtop = (api, v, data) => jget(PROXY + '/film?' + qp({ api, v, data: JSON.stringify(data) }));
-const mtopErr = r => String(r && r.ret || '没回话').replace('::', '：').slice(0, 60);
+const fxCity = () => CITIES[Math.min(+(localStorage.getItem(CITY_KEY) || 0) || 0, CITIES.length - 1)] || CITIES[0];
 
-let tppCache = { code: '', at: 0, shows: null };
-async function tppShows() {
-  const c = tppCity();
-  if (tppCache.code === c.code && tppCache.shows && Date.now() - tppCache.at < 6 * 3600e3) return tppCache.shows;
-  const r = await mtop('mtop.film.MtopShowAPI.getShowsByCityCode', '4.0', { citycode: c.code, platform: '8' });
-  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
-  tppCache = { code: c.code, at: Date.now(), shows: ((r.data || {}).returnValue || []).map(s => ({
-    id: String(s.id), name: s.showName, dur: s.duration,
-    cinemas: s.availableCinemaCount, scheds: s.availableScheduleCount
-  })) };
-  return tppCache.shows;
+const fx = (p, params) => jget(PROXY + '/fx?' + qp(Object.assign({ p }, params)));
+const fxData = r => {
+  if (!r || typeof r !== 'object') throw new Error('没回话');
+  if (r.code !== 0) throw new Error(String(r.error || r.msg || ('code ' + r.code)).slice(0, 70));
+  return r.data || {};
+};
+
+/* 时刻：它给的是毫秒时间戳，按北京切 */
+const hhmm = ms => { const d = new Date(ms + 8 * 3600000);
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+const ymd = d => { const x = new Date(d.getTime() + 8 * 3600000);
+  return x.toISOString().slice(0, 10); };
+
+let fxCache = { code: '', at: 0, list: null };
+async function fxFilms() {
+  const c = fxCity();
+  if (fxCache.code === c.code && fxCache.list && Date.now() - fxCache.at < 6 * 3600e3) return fxCache.list;
+  const d = fxData(await fx('/api/mongo/film_list', { cityCode: c.code, type: 'HotFilm' }));
+  fxCache = { code: c.code, at: Date.now(), list: (d.list || []).map(f => ({
+    id: f.filmId, name: f.name, dur: f.duration, area: f.movieArea })) };
+  return fxCache.list;
 }
-const matchTpp = (name, list) => {
+const matchFx = (name, list) => {
   const n = norm(name);
   if (!n) return null;
   return list.find(s => norm(s.name) === n)
       || list.find(s => norm(s.name).includes(n) || n.includes(norm(s.name)))
       || null;
 };
-async function tppCinemas(showId) {
-  const c = tppCity();
-  const r = await mtop('mtop.film.MtopCinemaAPI.getCinemaListInPage', '8.0',
-    { cityCode: c.code, showId, latitude: c.lat, longitude: c.lng, pageStart: 1, pageSize: 20, platform: '8', sortType: '1' });
-  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
-  return (((r.data || {}).returnValue || {}).cinemas || []).map(x => ({
-    id: String(x.cinemaId), name: x.cinemaName, addr: x.address,
-    dist: x.distance, price: x.minPrice, n: x.scheduleCount
-  }));
+
+async function fxDates(filmId) {
+  const c = fxCity();
+  const d = fxData(await fx('/api/mongo/film_dates', { cityCode: c.code, filmId }));
+  return (d.cinemaDates || []).map(x => x.date);
 }
-const schedCache = {};
-async function tppSchedules(cinemaId, showId) {
-  const key = cinemaId + '|' + showId;   // 一次返回的是这家影院全部在映片的场次，只按影院存会把 A 片发给 B 片
-  if (schedCache[key]) return schedCache[key];
-  const c = tppCity();
-  const r = await mtop('mtop.film.MtopScheduleAPI.getNewCinemaSchedules', '2.0',
-    { cinemaId, platform: '8', cityCode: c.code });
-  if (!/SUCCESS/.test(String(r.ret))) throw new Error(mtopErr(r));
-  const days = (((r.data || {}).returnValue || {}).showScheduleMap || {})[showId] || [];
-  const out = [];
-  for (const d of days) for (const s of (d.scheduleVos || [])) out.push({
-    date: d.dateDesc || d.dateTip || '', open: s.openTime, close: s.closeTime,
-    hall: s.hallName, ver: s.showVersion, price: s.tradePrice, ori: s.oriPrice,
-    sell: s.sellFlag, stop: s.scheduleCloseTime
-  });
-  schedCache[key] = out;
+async function fxCinemas(filmId, date) {
+  const c = fxCity();
+  const d = fxData(await fx('/api/mongo/film_cinema_list', {
+    cityCode: c.code, regionId: '', cinemaLineId: '', page: 0, keywords: '',
+    latitude: c.lat, longitude: c.lng, date, filmId, tags: '' }));
+  return { total: d.total || 0, list: (d.list || []).map(x => ({
+    id: x.cinemaId, name: x.cinemaName, addr: x.cinemaAddress,
+    dist: x.distanceText, price: x.netPrice, down: x.downPrice })) };
+}
+
+const roomCache = {};
+async function fxRooms(cinemaId, filmId, date) {
+  const key = cinemaId + '|' + filmId + '|' + date;
+  if (roomCache[key]) return roomCache[key];
+  const d = fxData(await fx('/api/mongo/film_rooms', { cinemaId, filmId, date }));
+  const out = (d.rooms || []).map(r => ({
+    sid: r.showId, ts: +r.showTime, open: hhmm(r.showTime), hall: r.hallName,
+    ver: r.showVersionType, lang: r.language, price: r.netPrice, dur: r.duration }))
+    .sort((a, b) => a.ts - b.ts);
+  roomCache[key] = out;
   return out;
+}
+
+async function fxSeats(showId) {
+  const d = fxData(await fx('/api/mongo/room_seats', { showId }));
+  return { room: d.room || {}, sections: (d.room && d.room.sections) || [], seats: d.seats || [] };
 }
 
 /* IMDb：OMDb 负责把片名换成 tt 号（它有跨域头），实时评分只能从 IMDb 自己的
@@ -491,71 +494,147 @@ function boxStruct(f) {
   </div>`;
 }
 
-/* 排片这一格：影院列表先给，场次表等点开那一家再去取。
-   座位图不在这里——淘票票的座位接口匿名打过去回的是 Session过期，
-   猫眼的座位页被嵌进框架会自己反复重载、它的接口又只认国内出口。
-   所以选座只留一条点过去的链接，不在这页里替它演一个假座位图。 */
+/* 排片这一格：日期和影院先给，场次等点开那一家再取，座位等点开那一格再取。
+   座位图就在这格里面——它给的是「这一场此刻还剩哪些位置」，不是画一张好看的厅。 */
 function sessionBlock(f) {
-  const mid = MA_IDS[norm(f.name)];
-  const seat = mid
-    ? `<div class="bar" style="margin-top:12px"><a class="btn" href="https://www.maoyan.com/cinemas?showId=${mid}"
-         target="_blank" rel="noopener">去猫眼选座</a>
-       <span class="moodn" style="margin:0">座位图要登录态才出，这一格给不了；点这个到猫眼自己页面里选。</span></div>`
-    : `<div class="moodn" style="margin-top:10px">这一部在猫眼片单里对不上号，所以没有可点去选座的页面——不给你一条猜出来的链接。</div>`;
   return `<div class="sess" data-sess>
-    <h3>${esc(tppCity().name)}排片 · 淘票票</h3>
-    <div class="sessbody"><span class="moodn" style="margin:0">正在取这一部在${esc(tppCity().name)}的场次…</span></div>
-    ${seat}</div>`;
+    <h3>${esc(fxCity().name)}排片 · 座位</h3>
+    <div class="sessbody"><span class="moodn" style="margin:0">正在取这一部在${esc(fxCity().name)}的场次…</span></div>
+  </div>`;
 }
 
-const slotHtml = r => {
-  const off = r.sell !== 0 || (r.stop && r.stop < Date.now());
-  const hall = String(r.hall || '').slice(0, 14);
-  return `<span class="slot${off ? ' off' : ''}" title="${esc(r.hall || '')}">` +
-    `<b>${esc(r.open || '')}</b>${r.close ? '–' + esc(r.close) : ''} ` +
-    `${esc(r.ver || '')}${hall ? ' · ' + esc(hall) : ''}` +
-    (r.price ? ' <span class="cd">￥' + (r.price / 100).toFixed(1) + '</span>' : '') +
-    (off ? ' 已停售' : '') + '</span>';
-};
+/* 它把座位状态写成两个字段：whstate=LK 是这间厅永久不卖的位置（它自己前端标「维护」），
+   status=LK 才是被人买走的。合成一个色，满场和空场就长得一样。 */
+const seatCls = s => s.whstate === 'LK' ? 'smaint' : (s.status === 'LK' ? 'ssold' : 'sfree');
+
+function seatGrid(seats) {
+  let maxR = 0, maxC = 0, minC = 1e9;
+  const at = {};
+  for (const s of seats) {
+    const r = +s.rowNo, c = +s.columnNo;
+    if (!(r > 0) || !(c > 0)) continue;
+    if (r > maxR) maxR = r;
+    if (c > maxC) maxC = c;
+    if (c < minC) minC = c;
+    at[r + ':' + c] = s;
+  }
+  if (!maxR) return '';
+  let out = '';
+  for (let r = 1; r <= maxR; r++) {
+    out += `<div class="srow"><span class="srl">${r}</span>`;
+    for (let c = minC; c <= maxC; c++) {
+      const s = at[r + ':' + c];
+      out += s ? `<span class="st ${seatCls(s)}${s.lovestatus === 1 ? ' slove' : ''}" title="${esc(s.seatNo)}"></span>`
+                : '<span class="st snone"></span>';
+    }
+    out += '</div>';
+  }
+  return `<div class="sgrid">${out}</div>`;
+}
+
+function seatPanel(d, r) {
+  let sold = 0, maint = 0, love = 0;
+  for (const s of d.seats) {
+    if (s.whstate === 'LK') maint++;
+    else if (s.status === 'LK') sold++;
+    if (s.lovestatus === 1) love++;
+  }
+  const free = d.seats.length - sold - maint;
+  const pr = [...new Set(d.sections.map(x => x.netPrice).filter(x => x != null))];
+  const hall = String((r && r.hall) || (d.room && d.room.hallName) || '').slice(0, 22);
+  const dur = (r && r.dur) || (d.room && d.room.duration);
+  return `<div class="sbar"><span class="st sfree"></span>可选 ${free}` +
+    `<span class="st ssold"></span>已售 ${sold}` +
+    (maint ? `<span class="st smaint"></span>不卖 ${maint}` : '') +
+    (love ? `<span class="st slove"></span>情侣座` : '') +
+    ` 共 ${d.seats.length} 座` +
+    (pr.length ? ' · 票价 ' + pr.map(x => '￥' + (+x).toFixed(1)).join(' / ') : '') +
+    ` · ${esc(hall)}${dur ? ' ' + esc(dur) + ' 分钟' : ''}` +
+    ` <span class="swhen">座位状态取于 ${esc(hhmm(Date.now()))}</span></div>` + seatGrid(d.seats);
+}
 
 async function fillSessions(f, drow) {
   const box = drow.querySelector('[data-sess] .sessbody');
   if (!box) return;
-  const cn = tppCity().name;
+  const cn = fxCity().name;
   let list;
-  try { list = await tppShows(); }
-  catch (e) { box.innerHTML = `<div class="err">淘票票没答话：${esc(e.message)}。这一格空着是取数没接上，不是这部片没排。</div>`; return; }
-  const m = matchTpp(f.name, list);
-  if (!m) { box.innerHTML = `<div class="moodn" style="margin:0">${esc(cn)}的淘票票片单（${list.length} 部）里没有这一部——可能刚下映，也可能这家不卖它。</div>`; return; }
-  let cs;
-  try { cs = await tppCinemas(m.id); }
-  catch (e) { box.innerHTML = `<div class="err">影院列表没取到：${esc(e.message)}。</div>`; return; }
-  if (!cs.length) { box.innerHTML = `<div class="moodn" style="margin:0">条目对上了，但${esc(cn)}眼下没有一家影院在排它。</div>`; return; }
-  const how = norm(m.name) === norm(f.name) ? '' : `（按片名对的，淘票票那边叫「${esc(m.name)}」）`;
-  box.innerHTML = `<div class="moodn" style="margin:0 0 6px">本市 ${m.cinemas} 家影院在映、共 ${m.scheds} 场；` +
-    `下面列最近 ${cs.length} 家，点一行出场次${how}</div>` +
-    cs.map((c, i) => `<div class="cin" data-c="${i}"><div class="hd">` +
-      `<span class="cn">${esc(c.name)}</span>` +
-      `<span class="cd">${c.dist == null ? '—' : c.dist + ' km'}</span>` +
-      `<span class="cp">${c.price ? '￥' + (c.price / 100).toFixed(1) + ' 起' : '—'}</span>` +
-      `<span class="cd">${c.n || 0} 场</span></div><div class="sc"></div></div>`).join('');
-  box.querySelectorAll('.cin').forEach(el => {
-    el.querySelector('.hd').onclick = async () => {
-      el.classList.toggle('open');
-      if (el.dataset.got) return;
-      el.dataset.got = '1';
-      const sc = el.querySelector('.sc');
-      sc.innerHTML = '<span class="moodn" style="margin:0">取场次…</span>';
-      try {
-        const rows = await tppSchedules(cs[+el.dataset.c].id, m.id);
-        if (!rows.length) { sc.innerHTML = '<span class="moodn" style="margin:0">这家已经没有这部片的场次了。</span>'; return; }
-        const byDate = {};
-        rows.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
-        sc.innerHTML = Object.keys(byDate).map(d =>
-          `<div style="margin:4px 0"><b>${esc(d)}</b> ${byDate[d].map(slotHtml).join('')}</div>`).join('');
-      } catch (e) { delete el.dataset.got; sc.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
-    };
-  });
+  try { list = await fxFilms(); }
+  catch (e) { box.innerHTML = `<div class="err">排片那层没答话：${esc(e.message)}。这一格空着是取数没接上，不是这部片没排。</div>`; return; }
+  const m = matchFx(f.name, list);
+  if (!m) { box.innerHTML = `<div class="moodn" style="margin:0">${esc(cn)}的片单（${list.length} 部）里没有这一部——可能刚下映，也可能这一家不卖它。</div>`; return; }
+  const how = norm(m.name) === norm(f.name) ? '' : `（按片名对的，那边叫「${esc(m.name)}」）`;
+
+  let dates = [];
+  try { dates = await fxDates(m.id); } catch (e) { dates = []; }
+  const today = ymd(new Date());
+  if (!dates.length) dates = [today];
+  let date = dates.includes(today) ? today : dates[0];
+
+  const head = document.createElement('div');
+  const body = document.createElement('div');
+  box.innerHTML = '';
+  box.appendChild(head);
+  box.appendChild(body);
+
+  async function load() {
+    body.innerHTML = '<span class="moodn" style="margin:0">取影院…</span>';
+    let cs;
+    try { cs = await fxCinemas(m.id, date); }
+    catch (e) { body.innerHTML = `<div class="err">影院列表没取到：${esc(e.message)}。</div>`; return; }
+    if (!cs.list.length) { body.innerHTML = `<div class="moodn" style="margin:0">${esc(date)} ${esc(cn)}没有一家影院在排它。</div>`; return; }
+    body.innerHTML = `<div class="moodn" style="margin:0 0 6px">${esc(date)} 本市 ${cs.total} 家在映、列最近 ${cs.list.length} 家；` +
+      `点一行出场次，点一场出座位${how}。距离是从${esc(cn)}市中心量的，不是从你家。</div>` +
+      cs.list.map((c, i) => `<div class="cin" data-c="${i}"><div class="hd">` +
+        `<span class="cn">${esc(c.name)}</span>` +
+        `<span class="cd">${esc(c.dist || '—')}</span>` +
+        `<span class="cp">${c.price != null ? '￥' + (+c.price).toFixed(1) + ' 起' : '—'}</span>` +
+        `</div><div class="sc"></div></div>`).join('');
+
+    body.querySelectorAll('.cin').forEach(el => {
+      const cin = cs.list[+el.dataset.c];
+      el.querySelector('.hd').onclick = async () => {
+        el.classList.toggle('open');
+        if (el.dataset.got) return;
+        el.dataset.got = '1';
+        const sc = el.querySelector('.sc');
+        sc.innerHTML = '<span class="moodn" style="margin:0">取场次…</span>';
+        let rows;
+        try { rows = await fxRooms(cin.id, m.id, date); }
+        catch (e) { delete el.dataset.got; sc.innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
+        if (!rows.length) { sc.innerHTML = '<span class="moodn" style="margin:0">这一家在这一天没排它（当天的表是空的），换一天或换一家。</span>'; return; }
+        sc.innerHTML = rows.map(r =>
+          `<button class="slot se" data-i="${r.sid}" title="${esc(r.hall || '')} ${esc(r.ver || '')}">` +
+          `<b>${esc(r.open)}</b>${r.ver ? ' ' + esc(String(r.ver).slice(0, 8)) : ''}` +
+          (r.price != null ? ` <span class="cd">￥${(+r.price).toFixed(1)}</span>` : '') +
+          `</button>`).join('') + '<div class="seatbox"></div>';
+
+        const sbox = sc.querySelector('.seatbox');
+        sc.querySelectorAll('.se').forEach(b => {
+          b.onclick = async () => {
+            sc.querySelectorAll('.se').forEach(x => x.classList.toggle('on', x === b));
+            if (sbox.dataset.sid === b.dataset.i && sbox.innerHTML) { sbox.innerHTML = ''; sbox.dataset.sid = ''; return; }
+            sbox.dataset.sid = b.dataset.i;
+            sbox.innerHTML = '<span class="moodn" style="margin:0">取座位…</span>';
+            const r = rows.find(x => x.sid === b.dataset.i);
+            try {
+              const d = await fxSeats(b.dataset.i);
+              if (!d.seats.length) { sbox.innerHTML = '<span class="moodn" style="margin:0">这一场没给座位表——不是空场，是它没回这一层。</span>'; return; }
+              sbox.innerHTML = seatPanel(d, r);
+            } catch (e) { sbox.innerHTML = `<span class="err">座位没取到：${esc(e.message)}</span>`; }
+          };
+        });
+      };
+    });
+  }
+
+  function drawDates() {
+    head.innerHTML = `<div class="bar" style="margin-bottom:8px">` +
+      dates.map(d => `<button class="slot dt${d === date ? ' on' : ''}" data-d="${esc(d)}">` +
+        `${esc(d === today ? '今天' : d.slice(5))}</button>`).join('') + '</div>';
+    head.querySelectorAll('.dt').forEach(b => b.onclick = () => { date = b.dataset.d; drawDates(); load(); });
+  }
+  drawDates();
+  load();
 }
 
 async function buildDetail(f) {
@@ -763,8 +842,8 @@ async function boot() {
   sel.value = localStorage.getItem(CITY_KEY) || '0';
   sel.onchange = () => {
     try { localStorage.setItem(CITY_KEY, sel.value); } catch (e) {}
-    tppCache = { code: '', at: 0, shows: null };
-    Object.keys(schedCache).forEach(k => delete schedCache[k]);
+    fxCache = { code: '', at: 0, list: null };
+    Object.keys(roomCache).forEach(k => delete roomCache[k]);
     const cur = document.querySelector('tr.row.open');
     document.querySelectorAll('tr.detail').forEach(d => {
       d.dataset.loaded = ''; d.hidden = true; d.querySelector('td').innerHTML = '';
